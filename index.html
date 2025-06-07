@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Personal Expense Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- NEW: Explicitly configure Tailwind for dark mode -->
+    <script>
+        tailwind.config = {
+          darkMode: 'class',
+        }
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script type="module">
@@ -112,9 +118,52 @@
             loadPreferences();
 
             // --- AI FEATURES ---
-            async function getAICategory(description) { /* ... existing code ... */ }
+            async function getAICategory(description) {
+                if (!description.trim()) {
+                    aiSuggestionEl.textContent = '';
+                    return;
+                }
+                aiSuggestionEl.textContent = '🧠 Thinking...';
+                
+                const prompt = `Categorize the following expense item into one of these categories: Food, Transport, Shopping, Bills, Entertainment, Health, Groceries, Other. Description: "${description}"`;
+
+                try {
+                    let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = { contents: chatHistory };
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+                    
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0) {
+                        const category = result.candidates[0].content.parts[0].text.trim();
+                        aiSuggestionEl.innerHTML = `Suggested Category: <button id="apply-suggestion-btn" class="bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">${category}</button>`;
+                        document.getElementById('apply-suggestion-btn').onclick = () => {
+                            categoryInput.value = category;
+                            aiSuggestionEl.textContent = '';
+                        };
+                    } else {
+                        aiSuggestionEl.textContent = 'Could not suggest a category.';
+                    }
+                } catch (error) {
+                    console.error("Error with AI categorization:", error);
+                    aiSuggestionEl.textContent = 'AI suggestion failed.';
+                }
+            }
+
             let debounceTimer;
-            descriptionInput.addEventListener('input', () => { /* ... existing code ... */ });
+            descriptionInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => getAICategory(descriptionInput.value), 800);
+            });
 
             // Scan Receipt Logic
             let receiptBase64 = null;
